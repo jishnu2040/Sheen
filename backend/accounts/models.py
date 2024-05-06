@@ -6,6 +6,13 @@ from rest_framework_simplejwt.tokens import RefreshToken
 
 # Create your models here.
 
+AUTH_PROVIDER ={
+    'email': 'email',
+    'google':'google',
+    'github':'hithub',
+    'facebook':'facebook'
+}
+
 class User(AbstractBaseUser, PermissionsMixin):
     email = models.EmailField(max_length=255, unique=True, verbose_name=_("Email address"))
     first_name =models.CharField(max_length=100, verbose_name=_("First Name"))
@@ -16,6 +23,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     is_active = models.BooleanField(default=True)
     date_joined = models.DateTimeField(auto_now_add=True)
     last_login = models.DateTimeField(auto_now=True)
+    auth_provider=models.CharField(max_length=100, default=AUTH_PROVIDER.get('email'))
 
 
     USERNAME_FIELD = "email"
