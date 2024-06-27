@@ -3,12 +3,15 @@ from rest_framework.generics import GenericAPIView
 from .serializers import UserRegisterSerializer,LoginSerializer,VerifyEmailSerializer,PasswordResetRequestSerializer,SetnewPasswordSerializer, LogoutUserSerializer
 from rest_framework.response import Response
 from rest_framework import status
-from .utils import send_code_to_user
-from .models import OneTimePassword, User
+from .models import User, OneTimePassword
+from django.utils import timezone
 from rest_framework.permissions import IsAuthenticated
 from django.utils.http import urlsafe_base64_decode
 from django.utils.encoding import smart_str, DjangoUnicodeDecodeError
 from django.contrib.auth.tokens import PasswordResetTokenGenerator
+from .tasks import send_code_to_user_task
+from django.contrib.auth import get_user_model
+
 
 # Create your views here.
 
@@ -16,18 +19,35 @@ class RegisterUserView(GenericAPIView):
     serializer_class = UserRegisterSerializer
 
     def post(self, request):
-        user_data = request.data
-        serializer=self.serializer_class(data=user_data)
-        if serializer.is_valid(raise_exception=True):
-            serializer.save()#triggers the create method of your UserRegisterSerializer
-            user=serializer.data
-            #send email function user['email]
-            send_code_to_user(user['email'])
-            return Response({
-                'data': user,
-                'message': f'thanks for signing up a passcode has sended to your email'
-            }, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        email = request.data.get('email')
+        
+        # Check if user with this email already exists
+        existing_user = User.objects.filter(email=email).first()
+
+        if existing_user:
+            print("this is exsisting user log")
+            if existing_user.is_verified:
+                return Response({'error':"Email already registered and verified."}, status=status.HTTP_400_BAD_REQUEST)
+            else:
+                # User exists but not verified, resend verification email or handle as needed
+                send_code_to_user_task.delay(existing_user.email)
+                return Response({'message': 'verification mail resent.'}, status=status.HTTP_200_OK)
+        else:
+            user_data = request.data
+            print("this is new user log")
+            serializer=self.serializer_class(data=user_data)
+            print("serializzeeeed data",serializer)
+            if serializer.is_valid(raise_exception=True):
+                serializer.save()  #triggers the create method of your UserRegisterSerializer
+                print("testregister data")
+                user=serializer.data
+                # Send email function using Celery task
+                send_code_to_user_task.delay(user['email'])
+                return Response({ 
+                    'data': user,
+                    'message': f'thanks for signing up a passcode has sended to your email'
+                }, status=status.HTTP_201_CREATED)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 class VerifyUserEmail(GenericAPIView):
     serializer_class = VerifyEmailSerializer 
@@ -36,11 +56,18 @@ class VerifyUserEmail(GenericAPIView):
         try:
             user_code_obj = OneTimePassword.objects.get(code=otpcode)
             user = user_code_obj.user 
+
+            if user_code_obj.expires_at < timezone.now():
+                user_code_obj.delete()
+                return Response({"error" :'OTP has expired'}, status=status.HTTP_400_BAD_REQUEST)
+
             if not user.is_verified:
                 user.is_verified=True
                 user.save()
+                user_code_obj.delete()  # Delete OTP after successful verification
+
                 return Response({
-                    'message':'account email verified successfully',
+                    'message':'Email verified successfully. You can now log in.',
                 }, status=status.HTTP_200_OK)
             return Response({
                 'message':'code is invalid user already verified'
@@ -52,13 +79,20 @@ class VerifyUserEmail(GenericAPIView):
             }, status=status.HTTP_404_NOT_FOUND)
 
 
-class LoginUserView(GenericAPIView):
-    serializer_class=LoginSerializer
-    def post(self, request):
-        serializer=self.serializer_class(data=request.data, context={'request':request})
-        serializer.is_valid(raise_exception=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+from rest_framework.exceptions import ValidationError
 
+class LoginUserView(GenericAPIView):
+    serializer_class = Login Serializer
+
+    def post(self, request):
+        serializer = self.serializer_class(data=request.data, context={'request': request})
+        try:
+            serializer.is_valid(raise_exception=True)
+        except ValidationError as e:
+            # Credentials are not valid
+            return Response({'message': 'Invalid credentials'}, status=status.HTTP_400_BAD_REQUEST)
+        # Credentials are valid, proceed with login
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
 class testAuthenticationView(GenericAPIView):
     permission_classes = [IsAuthenticated]
@@ -70,13 +104,28 @@ class testAuthenticationView(GenericAPIView):
         return Response(data,status=status.HTTP_200_OK)
     
 
+
+
 class PasswordResetRequestView(GenericAPIView):
     serializer_class = PasswordResetRequestSerializer
+
     def post(self, request):
-        serializer=self.serializer_class(data=request.data, context={'request': request})
+        serializer = self.serializer_class(data=request.data, context={'request': request})
+        # Accessing the context data
         serializer.is_valid(raise_exception=True)
-        return Response({'mesage':"a link has been sent to your email to reset your password"}, status=status.HTTP_200_OK)
-        
+
+        email = serializer.validated_data.get('email')
+        User = get_user_model()
+
+        # Check if the email exists in the database
+        if not User.objects.filter(email=email).exists():
+            return Response({'message': 'Email not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        # Send password reset email
+        # Your logic to send the password reset email goes here
+
+        return Response({'message': 'A link has been sent to your email to reset your password'}, status=status.HTTP_200_OK)
+
 class PasswordResetConfirm(GenericAPIView):
     def get(self, request, uidb64, token):
          try:

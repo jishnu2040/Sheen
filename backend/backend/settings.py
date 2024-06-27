@@ -11,6 +11,8 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 """
 from datetime import timedelta
 from pathlib import Path
+import os
+from celery import Celery
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -43,9 +45,12 @@ INSTALLED_APPS = [
     'corsheaders',
     'rest_framework_simplejwt',
     'rest_framework_simplejwt.token_blacklist',
-
-
+    'django_celery_beat',
+    'django_celery_results',
+    'djcelery_email',
 ]
+
+
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
@@ -78,16 +83,31 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'backend.wsgi.application'
 
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:3000",  # Your React app URL
+    "http://localhost:5173",  # Another possible port for your React app
+]
+
+CSRF_TRUSTED_ORIGINS = [
+    "http://localhost:3000",
+    "http://localhost:5173",
+]
+
 
 # Database
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': 'sheen_db',
+        'USER': 'sheen_admin',
+        'PASSWORD': 'JISHNU@2040',
+        'HOST': 'localhost',  # Or your PostgreSQL host
+        'PORT': '5432',  # Or your PostgreSQL port
     }
 }
+
 
 AUTH_USER_MODEL ="accounts.User"
 
@@ -131,11 +151,9 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = 'en-us'
 
-TIME_ZONE = 'UTC'
-
-USE_I18N = True
-
+TIME_ZONE = 'Asia/Kolkata'
 USE_TZ = True
+
 
 
 # Static files (CSS, JavaScript, Images)
@@ -148,17 +166,37 @@ STATIC_URL = '/static/'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_HOST = 'sandbox.smtp.mailtrap.io'
-EMAIL_HOST_USER = '3cec9afeadb3cc'
-EMAIL_HOST_PASSWORD = '853a51e669251c'
-DEFAULT_FROM_EMAIL='Sheenpvlimit.com'
-EMAIL_PORT = '2525'
-EMAIL_USE_TLS=True
 
+EMAIL_BACKEND = 'djcelery_email.backends.CeleryEmailBackend'
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_USE_TLS = True
+EMAIL_USE_SSL = False
+EMAIL_PORT = 587
+EMAIL_HOST_USER = 'sheenweb6@gmail.com'
+EMAIL_HOST_PASSWORD = 'egic fotf apkz reqc'
+DEFAULT_FROM_EMAIL = 'Celery <sheenonlineservice@gmail.com>'
 
-GOOGLE_CLIENT_ID="127240779276-tou36ovq6etmshaji3c9nl80oc7mtkdd.apps.googleusercontent.com"
+# Celery configuration
+CELERY_BROKER_URL = 'redis://localhost:6379/0'
+CELERY_RESULT_BACKEND = 'redis://localhost:6379/0'
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = 'Asia/Kolkata'
+CELERY_RESULT_BACKEND = 'django-db'
 
-GOOGLE_CLIENT_SECRET="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"
+# Celery Email configuration
+CELERY_EMAIL_TASK_CONFIG = {
+    'name': 'djcelery_email_send',
+    'ignore_result': True,
+}
 
-SOCIAL_AUTH_PASSWORD="BCJSNKMCLMSL3434"
+# Celery Beat schedule
+from celery.schedules import crontab
+
+CELERY_BEAT_SCHEDULE = {
+    'delete-expired-otps-daily': {
+        'task': 'accounts.tasks.delete_expired_otps',
+        'schedule': crontab(hour=0, minute=0),  # Every day at midnight
+    },
+}

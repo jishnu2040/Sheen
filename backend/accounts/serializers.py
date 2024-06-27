@@ -15,10 +15,11 @@ class UserRegisterSerializer(serializers.ModelSerializer):
     
     password=serializers.CharField(max_length =68, min_length =6, write_only =True)# write_only= True, because password no need to deserialize
     password2=serializers.CharField(max_length =68, min_length =6, write_only =True)# write_only= True, because password no need to deserialize
-
+    user_type = serializers.ChoiceField(choices=User.USER_TYPE_CHOICES, write_only=True)
+    # the above line need to reviewed
     class Meta:
         model=User
-        fields= ['email', 'first_name', 'last_name', 'password', 'password2']
+        fields= ['email', 'first_name', 'last_name', 'password', 'password2','user_type']
 
 
     def validate(self, attrs):
@@ -26,15 +27,22 @@ class UserRegisterSerializer(serializers.ModelSerializer):
         password2= attrs.get('password2', '')
         if password != password2:
             raise serializers.ValidationError("passwords do not match")
+
+        common_passwords = ["password", "123456", "12345678", "1234", "qwerty", "123456", "dragon", "pussy", "baseball", "football"]
+
+        if password.lower() in common_passwords:
+            raise serializers.ValidationError("Password is too common")
         return attrs
 
 
     def create(self, validated_data):
+        user_type = validated_data.pop('user_type', 'customer')
         user=User.objects.create_user(
             email=validated_data['email'],
             first_name=validated_data.get('first_name'),
             last_name=validated_data.get('last_name'),
-            password=validated_data.get('password')
+            password=validated_data.get('password'),
+            user_type=user_type
         )
         
         return user
@@ -84,7 +92,7 @@ class PasswordResetRequestSerializer(serializers.ModelSerializer):
 
     def validate(self, attrs):
         email=attrs.get('email')
-        if User.objects.filter(email=email).exists() :
+        if User.objects.filter(email=email).exists():
             user=User.objects.get(email=email)
             uidb64=urlsafe_base64_encode(smart_bytes(user.id))
             token=PasswordResetTokenGenerator().make_token(user)
@@ -92,9 +100,9 @@ class PasswordResetRequestSerializer(serializers.ModelSerializer):
             site_domain=get_current_site(request).domain
             relative_link=reverse('password-reset-confirm', kwargs={'uidb64':uidb64, 'token':token})
             abslink=f"http://{site_domain}{relative_link}"
-            email_body=f"Hi use thr link below to rest your password \n {abslink}"
+            email_body=f"Hi use the link below to rest your password \n {abslink}"
             data ={
-                'email_body': email_body,
+                'email_body': email_body, 
                 'email_subject': "Reset your Password",
                 'to_email':user.email            
             }
@@ -131,8 +139,6 @@ class SetnewPasswordSerializer(serializers.ModelSerializer):
         except Exception as e:
             return AuthenticationFailed("link is invalid or has expired")
 
-
-        return super().validate(attrs)
 
 
 class LogoutUserSerializer(serializers.ModelSerializer):
