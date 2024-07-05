@@ -6,7 +6,7 @@ from django.conf import settings
 from rest_framework.exceptions import AuthenticationFailed
 
 
-class Google:
+class Google():
     @staticmethod
     def validate(access_token):
         try:
@@ -18,7 +18,7 @@ class Google:
 
 def register_social_user(provider, email, first_name, last_name):
     user = User.objects.filter(email=email).first()
-    if user:
+    if user.exists():
         if provider == user.auth_provider:
             login_user = authenticate(email=email, password=settings.SOCIAL_AUTH_PASSWORD)
             user_tokens = login_user.tokens()
@@ -50,6 +50,6 @@ def register_social_user(provider, email, first_name, last_name):
         'email': login_user.email,
         'full_name': login_user.get_full_name,
         'access_token': str(user_tokens('access')),
-        'refresh_token': str(user_tokens('refresh'))
+        'refresh_token': str(user_tokens('refresh')),
     }
 

@@ -121,7 +121,7 @@ REST_FRAMEWORK = {
 }
 
 SIMPLE_JWT = {
-    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=10),
+    "ACCESS_TOKEN_LIFETIME": timedelta(seconds=10),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=1),
     "AUTH_HEADER_TYPES": ("Bearer",),
 }
@@ -200,3 +200,8 @@ CELERY_BEAT_SCHEDULE = {
         'schedule': crontab(hour=0, minute=0),  # Every day at midnight
     },
 }
+
+
+GOOGLE_CLIENT_ID="127240779276-tou36ovq6etmshaji3c9nl80oc7mtkdd.apps.googleusercontent.com"
+GOOGLE_CLIENT_SECRET="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"
+SOCIAL_AUTH_PASSWORD="ZDBDGBB435345"

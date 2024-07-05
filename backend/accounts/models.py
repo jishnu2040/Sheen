@@ -35,7 +35,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     date_joined = models.DateTimeField(auto_now_add=True)
     last_login = models.DateTimeField(auto_now=True)
     auth_provider=models.CharField(max_length=100, default=AUTH_PROVIDER.get('email'))
-    user_type = models.CharField(max_length=50, choices=USER_TYPE_CHOICES, default='cu stomer')
+    user_type = models.CharField(max_length=50, choices=USER_TYPE_CHOICES, default='customer')
 
 
     
@@ -84,7 +84,7 @@ class Partner(models.Model):
     company_name = models.CharField(max_length=255, verbose_name=_("Company Name"))
     address = models.CharField(max_length=255, verbose_name=_("Address"))
     phone = models.CharField(max_length=20, verbose_name=_("Phone Number"))
-    website = models.URLField(max_length=200, blank=True, null=True, verbose_name=_("Website"))
+    website = models.CharField(max_length=200, blank=True, null=True, verbose_name=_("Website"))
     latitude = models.DecimalField(max_digits=9, decimal_places=6, verbose_name=_("Latitude"))
     longitude = models.DecimalField(max_digits=9, decimal_places=6, verbose_name=_("Longitude"))
     created_at = models.DateTimeField(auto_now_add=True)

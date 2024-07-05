@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import User
+from .models import User,Partner
 from .managers import UserManager
 from django.contrib.auth import authenticate
 from rest_framework.exceptions import AuthenticationFailed
@@ -47,6 +47,17 @@ class UserRegisterSerializer(serializers.ModelSerializer):
         
         return user
     
+
+
+
+
+class VerifyEmailSerializer(serializers.Serializer):
+    otp = serializers.CharField()
+    
+
+
+
+
 class LoginSerializer(serializers.ModelSerializer):
     email= serializers.EmailField(max_length=255, min_length=6)
     password=serializers.CharField(max_length=68, write_only=True)
@@ -63,7 +74,9 @@ class LoginSerializer(serializers.ModelSerializer):
         email= attrs.get('email')
         password= attrs.get('password')
         request= self.context.get('request')
+        print("context testing",request)
         user=authenticate(request,email=email, password=password)
+        print(user)
         if not user:
             raise AuthenticationFailed("invalid credientials try again")
         if not user.is_verified:
@@ -79,13 +92,9 @@ class LoginSerializer(serializers.ModelSerializer):
         }
 
 
-class VerifyEmailSerializer(serializers.Serializer):
-    otp = serializers.CharField()
-
 
 class PasswordResetRequestSerializer(serializers.ModelSerializer):
     email=serializers.EmailField(max_length=255)
-
     class Meta:
         model= User
         fields=['email']
@@ -97,9 +106,8 @@ class PasswordResetRequestSerializer(serializers.ModelSerializer):
             uidb64=urlsafe_base64_encode(smart_bytes(user.id))
             token=PasswordResetTokenGenerator().make_token(user)
             request= self.context.get('request')
-            site_domain=get_current_site(request).domain
-            relative_link=reverse('password-reset-confirm', kwargs={'uidb64':uidb64, 'token':token})
-            abslink=f"http://{site_domain}{relative_link}"
+            relative_link = f'/password-reset-confirm/{uidb64}/{token}/'
+            abslink = f"http://localhost:5173{relative_link}"
             email_body=f"Hi use the link below to rest your password \n {abslink}"
             data ={
                 'email_body': email_body, 
@@ -107,7 +115,7 @@ class PasswordResetRequestSerializer(serializers.ModelSerializer):
                 'to_email':user.email            
             }
             send_normal_email(data)
-        return super().validate(attrs)
+        return super().validate(attrs) 
     
 
 class SetnewPasswordSerializer(serializers.ModelSerializer):
@@ -140,21 +148,36 @@ class SetnewPasswordSerializer(serializers.ModelSerializer):
             return AuthenticationFailed("link is invalid or has expired")
 
 
+class LogoutUserSerializer(serializers.Serializer):
+    refresh_token = serializers.CharField()
 
-class LogoutUserSerializer(serializers.ModelSerializer):
-    refresh_token= serializers.CharField()
-
-    default_error_messages={
+    default_error_messages = {
         'bad_token': ('Token is Invalid or has expired')
     }
 
     def validate(self, attrs):
-        self.token=attrs.get('refresh_token')
-        return attrs
-    
-    def save(self, **kwargs):
+        refresh_token = attrs.get('refresh_token')
+
         try:
-            token=RefreshToken(self.token)
+            token = RefreshToken(refresh_token)
             token.blacklist()
         except TokenError:
-            return self.fail('bad_token')
+            self.fail('bad_token')
+
+        return attrs
+
+    def save(self, **kwargs):
+        pass  # No save operation is needed here since it's just blacklisting the token
+
+    class Meta:
+        fields = '__all__'  # Define fields if needed, or simply use '__all__'
+
+
+# serializers.py
+
+
+
+class PartnerSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Partner
+        fields = ['company_name', 'address', 'phone', 'website', 'latitude', 'longitude']

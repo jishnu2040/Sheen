@@ -11,46 +11,50 @@ from django.utils.encoding import smart_str, DjangoUnicodeDecodeError
 from django.contrib.auth.tokens import PasswordResetTokenGenerator
 from .tasks import send_code_to_user_task
 from django.contrib.auth import get_user_model
-
-
+from rest_framework.exceptions import ValidationError
+from .models import Partner
+from .serializers import PartnerSerializer
 # Create your views here.
-
 class RegisterUserView(GenericAPIView):
     serializer_class = UserRegisterSerializer
 
     def post(self, request):
         email = request.data.get('email')
-        
+    
         # Check if user with this email already exists
         existing_user = User.objects.filter(email=email).first()
 
         if existing_user:
-            print("this is exsisting user log")
+            print("this is existing user log")
             if existing_user.is_verified:
-                return Response({'error':"Email already registered and verified."}, status=status.HTTP_400_BAD_REQUEST)
-            else:
-                # User exists but not verified, resend verification email or handle as needed
-                send_code_to_user_task.delay(existing_user.email)
-                return Response({'message': 'verification mail resent.'}, status=status.HTTP_200_OK)
+                return Response({'error': "Email already registered and verified."}, status=status.HTTP_400_BAD_REQUEST)
+
+            # Send OTP to existing user (user registered but not verified)
+            send_code_to_user_task.delay(existing_user.email)
+            return Response({'message': 'Verification mail resent.'}, status=status.HTTP_200_OK)
         else:
             user_data = request.data
             print("this is new user log")
-            serializer=self.serializer_class(data=user_data)
-            print("serializzeeeed data",serializer)
+            serializer = self.serializer_class(data=user_data)
+
             if serializer.is_valid(raise_exception=True):
-                serializer.save()  #triggers the create method of your UserRegisterSerializer
+                serializer.save()  # triggers the create method of your UserRegisterSerializer
                 print("testregister data")
-                user=serializer.data
+                user = serializer.data
+                print("serializer userdata", user)
                 # Send email function using Celery task
                 send_code_to_user_task.delay(user['email'])
+
                 return Response({ 
                     'data': user,
-                    'message': f'thanks for signing up a passcode has sended to your email'
+                    'message': 'Thanks for signing up, a passcode has been sent to your email.'
                 }, status=status.HTTP_201_CREATED)
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
+        
 class VerifyUserEmail(GenericAPIView):
     serializer_class = VerifyEmailSerializer 
+    print("verify hited")
+
     def post(self, request):
         otpcode= request.data.get('otp')
         try:
@@ -63,14 +67,16 @@ class VerifyUserEmail(GenericAPIView):
 
             if not user.is_verified:
                 user.is_verified=True
-                user.save()
+                user.save() 
                 user_code_obj.delete()  # Delete OTP after successful verification
-
+                print(user.user_type)
                 return Response({
                     'message':'Email verified successfully. You can now log in.',
+                    'user_type': user.user_type,
+                    'user_id': user.id
                 }, status=status.HTTP_200_OK)
             return Response({
-                'message':'code is invalid user already verified'
+                'message':'user already verified'
             }, status=status.HTTP_204_NO_CONTENT)
 
         except OneTimePassword.DoesNotExist:
@@ -79,13 +85,12 @@ class VerifyUserEmail(GenericAPIView):
             }, status=status.HTTP_404_NOT_FOUND)
 
 
-from rest_framework.exceptions import ValidationError
-
 class LoginUserView(GenericAPIView):
-    serializer_class = Login Serializer
+    serializer_class = LoginSerializer
 
     def post(self, request):
         serializer = self.serializer_class(data=request.data, context={'request': request})
+        print(request)
         try:
             serializer.is_valid(raise_exception=True)
         except ValidationError as e:
@@ -93,6 +98,7 @@ class LoginUserView(GenericAPIView):
             return Response({'message': 'Invalid credentials'}, status=status.HTTP_400_BAD_REQUEST)
         # Credentials are valid, proceed with login
         return Response(serializer.data, status=status.HTTP_200_OK)
+    
 
 class testAuthenticationView(GenericAPIView):
     permission_classes = [IsAuthenticated]
@@ -126,6 +132,7 @@ class PasswordResetRequestView(GenericAPIView):
 
         return Response({'message': 'A link has been sent to your email to reset your password'}, status=status.HTTP_200_OK)
 
+
 class PasswordResetConfirm(GenericAPIView):
     def get(self, request, uidb64, token):
          try:
@@ -141,6 +148,7 @@ class PasswordResetConfirm(GenericAPIView):
 
 class SetnewPassword(GenericAPIView):
     serializer_class=SetnewPasswordSerializer
+
     def patch(self,request):
         serializer=self.serializer_class(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -154,4 +162,21 @@ class LogoutUserView(GenericAPIView):
         serializer=self.serializer_class(data=request.data)
         serializer.is_valid(raise_exception=True)
         serializer.save()
+        print("logout succesfully")
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+
+# views.py
+
+
+class PartnerDetailsView(GenericAPIView):
+    serializer_class = PartnerSerializer
+
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        if serializer.is_valid():
+            # Assign the authenticated user to the partner profile
+            serializer.save(user=self.request.user)  # Assuming user is authenticated
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
