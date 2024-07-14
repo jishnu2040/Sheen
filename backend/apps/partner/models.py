@@ -1,6 +1,9 @@
+
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 from django.utils import timezone
+from apps.accounts.models import User
+
 
 class ServiceType(models.Model):
     name = models.CharField(max_length=100)
@@ -13,6 +16,7 @@ class ServiceType(models.Model):
 
 
 class PartnerDetail(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE, default=1)
     business_name = models.CharField(max_length=200)
     website = models.URLField(blank=True, null=True)
     service_type = models.ManyToManyField(ServiceType, related_name='partners')
