@@ -91,13 +91,14 @@ class LoginUserView(GenericAPIView):
 
     def post(self, request):
         serializer = self.serializer_class(data=request.data, context={'request': request})
-        print(request)
+
         try:
             serializer.is_valid(raise_exception=True)
         except ValidationError as e:
             # Credentials are not valid
             return Response({'message': 'Invalid credentials'}, status=status.HTTP_400_BAD_REQUEST)
         # Credentials are valid, proceed with login
+        
         return Response(serializer.data, status=status.HTTP_200_OK)
     
 
@@ -160,10 +161,10 @@ class LogoutUserView(GenericAPIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        serializer=self.serializer_class(data=request.data)
+        print(request.data)
+        serializer = self.serializer_class(data=request.data)
         serializer.is_valid(raise_exception=True)
         serializer.save()
-        print("logout succesfully")
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 

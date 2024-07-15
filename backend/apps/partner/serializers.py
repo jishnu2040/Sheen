@@ -21,3 +21,8 @@ class PartnerCreateSerializer(serializers.ModelSerializer):
         partner_detail = PartnerDetail.objects.create(**validated_data)
         partner_detail.service_type.set(service_types)
         return partner_detail
+
+class PartnerDetailSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PartnerDetail
+        fields =['business_name', 'website', 'team_size', 'location', 'service_type']

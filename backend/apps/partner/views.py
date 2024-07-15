@@ -1,7 +1,7 @@
 from rest_framework import viewsets, generics
 from rest_framework.response import Response
 from .models import ServiceType, PartnerDetail
-from .serializers import ServiceTypeSerializer, PartnerCreateSerializer
+from .serializers import ServiceTypeSerializer, PartnerCreateSerializer,PartnerDetailSerializer
 from rest_framework import status
 
 
@@ -25,3 +25,7 @@ class PartnerCreateView(generics.CreateAPIView):
         return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
 
+class PartnerListView(generics.ListAPIView):
+    queryset = PartnerDetail.objects.all()
+    serializer_class = PartnerDetailSerializer
+    

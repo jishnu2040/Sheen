@@ -64,11 +64,11 @@ class LoginSerializer(serializers.ModelSerializer):
     full_name=serializers.CharField(max_length=255, read_only=True)
     access_token=serializers.CharField(max_length=255, read_only=True)
     refresh_token=serializers.CharField(max_length=255, read_only=True)
-
+    user_type =  serializers.CharField(max_length=50, read_only =True)
     
     class Meta:
         model=User
-        fields=['email', 'password', 'full_name', 'access_token', 'refresh_token']
+        fields=['email', 'password', 'full_name', 'access_token', 'refresh_token', 'user_type']
 
     def validate(self, attrs):
         email= attrs.get('email')
@@ -88,7 +88,8 @@ class LoginSerializer(serializers.ModelSerializer):
             'email': user.email,
             'full_name': user.get_full_name,
             'access_token':str(user_tokens['access']),
-            'refresh_token':str(user_tokens['refresh'])
+            'refresh_token':str(user_tokens['refresh']), 
+            'user_type': user.user_type
         }
 
 
@@ -148,29 +149,30 @@ class SetnewPasswordSerializer(serializers.ModelSerializer):
             return AuthenticationFailed("link is invalid or has expired")
 
 
+from rest_framework import serializers
+from rest_framework_simplejwt.tokens import RefreshToken, TokenError
+
 class LogoutUserSerializer(serializers.Serializer):
     refresh_token = serializers.CharField()
 
     default_error_messages = {
-        'bad_token': ('Token is Invalid or has expired')
+        'bad_token': 'Token is Invalid or has expired'
     }
 
     def validate(self, attrs):
         refresh_token = attrs.get('refresh_token')
+        if not refresh_token:
+            raise serializers.ValidationError("Refresh token is required")
+        return attrs
 
+    def save(self, **kwargs):
         try:
+            refresh_token = self.validated_data['refresh_token']
             token = RefreshToken(refresh_token)
             token.blacklist()
         except TokenError:
             self.fail('bad_token')
 
-        return attrs
-
-    def save(self, **kwargs):
-        pass  # No save operation is needed here since it's just blacklisting the token
-
-    class Meta:
-        fields = '__all__'  # Define fields if needed, or simply use '__all__'
 
 
 # serializers.py

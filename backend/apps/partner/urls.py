@@ -1,11 +1,12 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import ServiceTypeListView, PartnerCreateView
+from .views import ServiceTypeListView, PartnerCreateView, PartnerListView
 
 # router = DefaultRouter()
 # router.register(r'partner_details', PartnerDetailViewSet)
 
 urlpatterns = [
     path('service-types/', ServiceTypeListView.as_view(), name='service-type-list'),
-    path('create-partner/', PartnerCreateView.as_view(), name='partner-creation')
+    path('create-partner/', PartnerCreateView.as_view(), name='partner-creation'),
+    path('list-partner/', PartnerListView.as_view(), name= 'partner-list-view')
 ]
